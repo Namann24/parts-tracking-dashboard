@@ -1,6 +1,6 @@
 import { useState, useEffect, type KeyboardEvent } from 'react';
 import { mockOrders, type Order, type OrderStatus, type TimelineEvent } from './data/mockOrders';
-import { Factory, BarChart2, ChevronDown, Settings, User, Clock, ShieldCheck, Shield, Search, RefreshCw, Plus } from 'lucide-react';
+import { Factory, BarChart2, ChevronDown, Settings, User, Clock, Shield, Search, RefreshCw, Plus } from 'lucide-react';
 import './index.css';
 
 const getStatusClass = (status: OrderStatus) => {
