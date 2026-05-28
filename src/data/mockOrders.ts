@@ -5,6 +5,7 @@ export interface TimelineEvent {
   timestamp: string; // ISO string
   status: OrderStatus;
   description: string;
+  type: 'system' | 'manual';
 }
 
 export interface Order {
@@ -28,7 +29,8 @@ export const mockOrders: Order[] = [
         id: 'ev-1',
         timestamp: '2026-05-25T08:30:00Z',
         status: 'In Production',
-        description: 'Raw materials received (Batch #Al-2024-T3). CNC machining initiated on Haas VF-4 (Machine ID: M-12).',
+        description: 'Batch routing initiated. Production line state reset to active manufacturing.',
+        type: 'system'
       }
     ]
   },
@@ -43,13 +45,22 @@ export const mockOrders: Order[] = [
         id: 'ev-2',
         timestamp: '2026-05-24T10:00:00Z',
         status: 'In Production',
+        description: 'Batch routing initiated. Production line state reset to active manufacturing.',
+        type: 'system'
+      },
+      {
+        id: 'ev-2-man',
+        timestamp: '2026-05-25T11:30:00Z',
+        status: 'In Production',
         description: 'Cold heading and thread rolling complete (Operator: J. Smith).',
+        type: 'manual'
       },
       {
         id: 'ev-3',
         timestamp: '2026-05-26T14:15:00Z',
         status: 'Quality Check',
-        description: 'Transferred to QA Lab 2 for optical comparator inspection. Pending dimensional tolerance report.',
+        description: 'Batch transitioned to QA Lab for dimensional tolerance and specification verification.',
+        type: 'system'
       }
     ]
   },
@@ -64,13 +75,29 @@ export const mockOrders: Order[] = [
         id: 'ev-4',
         timestamp: '2026-05-20T09:00:00Z',
         status: 'In Production',
+        description: 'Batch routing initiated. Production line state reset to active manufacturing.',
+        type: 'system'
+      },
+      {
+        id: 'ev-4-man',
+        timestamp: '2026-05-21T10:00:00Z',
+        status: 'In Production',
         description: 'Pre-preg layup process completed. Loaded into Autoclave #3 for curing cycle.',
+        type: 'manual'
       },
       {
         id: 'ev-5',
         timestamp: '2026-05-22T16:30:00Z',
         status: 'Delayed',
+        description: 'Operational hold placed on batch. Assessing logistics or supply chain constraints.',
+        type: 'system'
+      },
+      {
+        id: 'ev-5-man',
+        timestamp: '2026-05-22T17:00:00Z',
+        status: 'Delayed',
         description: 'Autoclave #3 temperature anomaly detected during hold phase. Curing cycle extended for re-verification (Ref: INC-409).',
+        type: 'manual'
       }
     ]
   },
@@ -85,19 +112,29 @@ export const mockOrders: Order[] = [
         id: 'ev-6',
         timestamp: '2026-05-23T08:00:00Z',
         status: 'In Production',
-        description: 'Injection molding run complete using Tooling #T-984. Shot consistency verified.',
+        description: 'Batch routing initiated. Production line state reset to active manufacturing.',
+        type: 'system'
       },
       {
         id: 'ev-7',
         timestamp: '2026-05-25T11:00:00Z',
         status: 'Quality Check',
+        description: 'Batch transitioned to QA Lab for dimensional tolerance and specification verification.',
+        type: 'system'
+      },
+      {
+        id: 'ev-7-man',
+        timestamp: '2026-05-26T14:00:00Z',
+        status: 'Quality Check',
         description: 'Batch passed visual and structural inspection (CMM Report #CMM-88).',
+        type: 'manual'
       },
       {
         id: 'ev-8',
         timestamp: '2026-05-27T09:30:00Z',
         status: 'Ready to Ship',
-        description: 'Palletized (Pallet IDs: P1-P4), shrink-wrapped, and staged at Loading Bay 4 for pickup.',
+        description: 'Quality sign-off complete. Component packaged and transferred to logistics queue.',
+        type: 'system'
       }
     ]
   },
@@ -112,25 +149,29 @@ export const mockOrders: Order[] = [
         id: 'ev-9',
         timestamp: '2026-05-21T07:45:00Z',
         status: 'In Production',
-        description: 'Extrusion line #2 and post-cure baking completed.',
+        description: 'Batch routing initiated. Production line state reset to active manufacturing.',
+        type: 'system'
       },
       {
         id: 'ev-10',
         timestamp: '2026-05-22T13:20:00Z',
         status: 'Quality Check',
-        description: 'Durometer testing (Shore A 70) and flash inspection passed.',
+        description: 'Batch transitioned to QA Lab for dimensional tolerance and specification verification.',
+        type: 'system'
       },
       {
         id: 'ev-11',
         timestamp: '2026-05-24T10:15:00Z',
         status: 'Ready to Ship',
-        description: 'Boxed into standard shipping cartons and handed over to logistics partner (Waybill #WB-990).',
+        description: 'Quality sign-off complete. Component packaged and transferred to logistics queue.',
+        type: 'system'
       },
       {
         id: 'ev-12',
         timestamp: '2026-05-26T15:45:00Z',
         status: 'Delivered',
-        description: 'Received and signed for by customer receiving dock. Proof of delivery filed.',
+        description: 'Shipment received and signed for at customer dock. Final delivery logged.',
+        type: 'system'
       }
     ]
   }
