@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
 import { mockOrders, type Order, type OrderStatus, type TimelineEvent } from './data/mockOrders';
-import { Hexagon, Bell, ChevronDown, Search, AlertCircle, PackageCheck, AlertTriangle, Activity, Package, Sparkles, Download } from 'lucide-react';
+import { Hexagon, Bell, ChevronDown, Search, PackageCheck, AlertTriangle, Activity, Package, Sparkles, Download, RefreshCw, Inbox } from 'lucide-react';
 import './index.css';
 
 const getStatusClass = (status: OrderStatus) => {
@@ -41,10 +41,12 @@ const getSystemDescriptionForStatus = (status: OrderStatus) => {
 // Layer 1: Global App Bar
 const GlobalAppBar = ({ 
   isStaffMode, 
-  setIsStaffMode 
+  setIsStaffMode,
+  onReset
 }: { 
   isStaffMode: boolean, 
-  setIsStaffMode: (val: boolean) => void
+  setIsStaffMode: (val: boolean) => void,
+  onReset: () => void
 }) => {
   const [time, setTime] = useState(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
   
@@ -58,7 +60,9 @@ const GlobalAppBar = ({
   return (
     <header className="global-app-bar">
       <div className="global-brand">
-        <Hexagon className="brand-icon" size={16} />
+        <div className="brand-icon-wrapper">
+          <Hexagon className="brand-icon" size={16} />
+        </div>
         <span className="global-brand-text">Nexus Ops</span>
       </div>
       
@@ -75,13 +79,13 @@ const GlobalAppBar = ({
           <div className={`segmented-control ${isStaffMode ? 'staff-mode' : 'customer-mode'}`} role="group" aria-label="View Mode">
             <div className="segmented-slider"></div>
             <button 
-              className={`segment-btn interactive-scale ${!isStaffMode ? 'active' : ''}`}
+              className={`segment-btn ${!isStaffMode ? 'active' : ''}`}
               onClick={() => setIsStaffMode(false)}
             >
               Customer
             </button>
             <button 
-              className={`segment-btn interactive-scale ${isStaffMode ? 'active' : ''}`}
+              className={`segment-btn ${isStaffMode ? 'active' : ''}`}
               onClick={() => setIsStaffMode(true)}
             >
               Internal Ops
@@ -91,10 +95,16 @@ const GlobalAppBar = ({
         
         <span className="system-time hidden-mobile">{time}</span>
         
+        <button className="action-btn-clean interactive-scale hidden-mobile" title="Reset System Data" onClick={onReset}>
+          <RefreshCw size={16} className="transition-colors" />
+        </button>
+        
         <Bell className="action-icon interactive-scale hidden-mobile" size={16} />
         
-        <div className="user-avatar-dark interactive-scale hidden-mobile" title="Namann Sharma">
-          NS
+        <div className="avatar-wrapper hidden-mobile" title="Namann Sharma">
+          <div className="user-avatar-dark">
+            NS
+          </div>
         </div>
       </div>
     </header>
@@ -135,7 +145,12 @@ const WorkspaceHeader = ({ onExportCSV }: { onExportCSV: () => void }) => (
   </div>
 );
 
-const ExecutiveOverview = ({ orders, getDerivedStatus }: { orders: Order[], getDerivedStatus: (o: Order) => OrderStatus }) => {
+const ExecutiveOverview = ({ orders, getDerivedStatus, filter, setFilter }: { 
+  orders: Order[], 
+  getDerivedStatus: (o: Order) => OrderStatus,
+  filter: FilterOption,
+  setFilter: (f: FilterOption) => void
+}) => {
   const activeCount = orders.filter(o => {
     const s = getDerivedStatus(o);
     return s === 'In Production' || s === 'Quality Check';
@@ -147,28 +162,40 @@ const ExecutiveOverview = ({ orders, getDerivedStatus }: { orders: Order[], getD
 
   return (
     <div className="executive-overview">
-      <div className="metric-card">
+      <div 
+        className={`metric-card cursor-pointer transition-all duration-200 hover:border-zinc-300 hover:shadow-md active:scale-[0.98] ${filter === 'Active' ? 'ring-2 ring-sky-500/50' : ''}`}
+        onClick={() => setFilter('Active')}
+      >
         <div className="metric-header">
           <Activity size={16} className="metric-icon text-sky-500" />
           <span className="metric-label">Active Orders</span>
         </div>
         <span className="metric-value">{activeCount}</span>
       </div>
-      <div className="metric-card">
+      <div 
+        className={`metric-card cursor-pointer transition-all duration-200 hover:border-zinc-300 hover:shadow-md active:scale-[0.98] ${filter === 'Delayed' ? 'ring-2 ring-red-500/50' : ''}`}
+        onClick={() => setFilter('Delayed')}
+      >
         <div className="metric-header">
           <AlertTriangle size={16} className="metric-icon text-red-500" />
           <span className="metric-label">Delayed Orders</span>
         </div>
         <span className="metric-value">{delayedCount}</span>
       </div>
-      <div className="metric-card">
+      <div 
+        className={`metric-card cursor-pointer transition-all duration-200 hover:border-zinc-300 hover:shadow-md active:scale-[0.98] ${filter === 'Ready to Ship' ? 'ring-2 ring-emerald-500/50' : ''}`}
+        onClick={() => setFilter('Ready to Ship')}
+      >
         <div className="metric-header">
           <Package size={16} className="metric-icon text-emerald-500" />
           <span className="metric-label">Ready To Ship</span>
         </div>
         <span className="metric-value">{readyCount}</span>
       </div>
-      <div className="metric-card">
+      <div 
+        className={`metric-card cursor-pointer transition-all duration-200 hover:border-zinc-300 hover:shadow-md active:scale-[0.98] ${filter === 'Delivered' ? 'ring-2 ring-zinc-400/50' : ''}`}
+        onClick={() => setFilter('Delivered')}
+      >
         <div className="metric-header">
           <PackageCheck size={16} className="metric-icon text-zinc-400" />
           <span className="metric-label">Completed</span>
@@ -283,7 +310,7 @@ const ProgressStepper = ({ order, currentStatus }: { order: Order, currentStatus
   );
 };
 
-const StatusDropdown = ({ value, onChange, options }: { value: OrderStatus, onChange: (v: OrderStatus) => void, options: OrderStatus[] }) => {
+const StatusDropdown = ({ value, onChange, options, disabled }: { value: OrderStatus, onChange: (v: OrderStatus) => void, options: OrderStatus[], disabled?: boolean }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -298,16 +325,17 @@ const StatusDropdown = ({ value, onChange, options }: { value: OrderStatus, onCh
   }, [isOpen]);
 
   return (
-    <div className="custom-dropdown-container" ref={ref} onClick={(e) => e.stopPropagation()}>
+    <div className="custom-dropdown-container" ref={ref} onClick={(e) => { if(!disabled) e.stopPropagation(); }}>
       <button 
         className={`custom-dropdown-trigger interactive-scale ${getStatusClass(value)}`} 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
         aria-expanded={isOpen}
+        disabled={disabled}
       >
         <span className="dropdown-value-text">{value}</span>
         <ChevronDown size={14} className={`dropdown-icon ${isOpen ? 'open' : ''}`} />
       </button>
-      {isOpen && (
+      {isOpen && !disabled && (
         <div className="custom-dropdown-menu">
           {options.map(opt => (
             <button 
@@ -327,13 +355,17 @@ const StatusDropdown = ({ value, onChange, options }: { value: OrderStatus, onCh
 const OrderCard = ({ 
   order, 
   isStaffMode, 
+  isLoading,
   onUpdateStatus, 
-  onAddUpdate 
+  onAddUpdate,
+  index = 0
 }: { 
   order: Order; 
   isStaffMode: boolean; 
+  isLoading: boolean;
   onUpdateStatus: (id: string, s: OrderStatus) => void;
   onAddUpdate: (id: string, desc: string, type: 'system' | 'manual') => void;
+  index?: number;
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [newUpdateText, setNewUpdateText] = useState("");
@@ -364,7 +396,10 @@ const OrderCard = ({
     : 'Pending';
 
   return (
-    <div className={`order-card ${getCardBorderClass(displayStatus)} ${expanded ? 'expanded' : ''}`}>
+    <div 
+      className={`order-card animate-fade-in ${getCardBorderClass(displayStatus)} ${expanded ? 'expanded' : ''} ${isLoading ? 'is-loading' : ''}`}
+      style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'both' }}
+    >
       <div 
         className="order-card-summary" 
         onClick={() => setExpanded(!expanded)}
@@ -407,6 +442,7 @@ const OrderCard = ({
               value={displayStatus} 
               onChange={(v) => onUpdateStatus(order.id, v)} 
               options={statusOptions}
+              disabled={isLoading}
             />
           ) : (
             <span className={`status-badge ${getStatusClass(displayStatus)}`}>
@@ -473,11 +509,12 @@ const OrderCard = ({
                     value={newUpdateText}
                     onChange={e => setNewUpdateText(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleAddUpdate(); }}
+                    disabled={isLoading}
                   />
                   <button 
                     className="btn-secondary btn-sm interactive-scale" 
                     onClick={handleAddUpdate}
-                    disabled={!newUpdateText.trim()}
+                    disabled={!newUpdateText.trim() || isLoading}
                   >
                     Add Update
                   </button>
@@ -566,16 +603,27 @@ const AddOrderModal = ({
   );
 };
 
-type FilterOption = OrderStatus | 'All';
+type FilterOption = OrderStatus | 'All' | 'Active';
+
+type ToastMessage = {
+  id: string;
+  message: string;
+  onUndo?: () => void;
+};
 
 function App() {
   const [filter, setFilter] = useState<FilterOption>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isStaffMode, setIsStaffMode] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
+  const [sortField, setSortField] = useState<'qty' | 'eta' | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('parts-tracking-v7');
+    const saved = localStorage.getItem('nexus_orders');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -587,8 +635,34 @@ function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem('parts-tracking-v7', JSON.stringify(orders));
+    localStorage.setItem('nexus_orders', JSON.stringify(orders));
   }, [orders]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === '/' && document.activeElement !== searchInputRef.current && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const addToast = (message: string, onUndo?: () => void) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    setToasts(prev => [...prev, { id, message, onUndo }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+    return id;
+  };
+
+  const handleResetSystem = () => {
+    localStorage.removeItem('nexus_orders');
+    setOrders(mockOrders);
+    addToast("🔄 System data has been reset to factory defaults.");
+  };
 
   const getDerivedStatus = (o: Order): OrderStatus => {
       const latestSys = [...o.timeline].reverse().find(e => e.type === 'system');
@@ -596,12 +670,19 @@ function App() {
   };
 
   const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
+    const orderToUpdate = orders.find(o => o.id === orderId);
+    if (!orderToUpdate) return;
+    
+    const latestSystemEvent = [...orderToUpdate.timeline].reverse().find(e => e.type === 'system');
+    const activeStatus = latestSystemEvent ? latestSystemEvent.status : orderToUpdate.currentStatus;
+    if (activeStatus === newStatus) return;
+
+    // Deep copy for rollback
+    const oldOrder = JSON.parse(JSON.stringify(orderToUpdate));
+
+    // Optimistic UI update
     setOrders(prev => prev.map(o => {
       if (o.id !== orderId) return o;
-
-      const latestSystemEvent = [...o.timeline].reverse().find(e => e.type === 'system');
-      const activeStatus = latestSystemEvent ? latestSystemEvent.status : o.currentStatus;
-      if (activeStatus === newStatus) return o;
 
       const canonicalWeights: Record<OrderStatus, number> = {
         'In Production': 0,
@@ -639,6 +720,15 @@ function App() {
 
       return { ...o, currentStatus: newStatus, timeline: finalTimeline };
     }));
+
+    let toastId = '';
+    const handleUndo = () => {
+      setOrders(prev => prev.map(o => o.id === orderId ? oldOrder : o));
+      setToasts(prev => prev.filter(t => t.id !== toastId));
+      addToast("⏪ Status reverted");
+    };
+
+    toastId = addToast(`✅ Order updated to ${newStatus}`, handleUndo);
   };
 
   const addTimelineEvent = (orderId: string, description: string, type: 'system' | 'manual') => {
@@ -658,6 +748,7 @@ function App() {
       }
       return o;
     }));
+    addToast(`✅ Operational note added to ${orderId}.`);
   };
 
   const handleCreateOrder = (name: string, qty: number, eta: string) => {
@@ -681,11 +772,16 @@ function App() {
 
     setOrders(prev => [newOrder, ...prev]);
     setIsAddModalOpen(false);
+    addToast(`✅ New order ${newId} created successfully.`);
   };
 
   const filteredOrders = orders.filter(o => {
     const s = getDerivedStatus(o);
-    if (filter !== 'All' && s !== filter) return false;
+    if (filter === 'Active') {
+      if (s !== 'In Production' && s !== 'Quality Check') return false;
+    } else if (filter !== 'All' && s !== filter) {
+      return false;
+    }
     
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -697,11 +793,36 @@ function App() {
     return true;
   });
 
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    if (!sortField) return 0;
+    const modifier = sortDirection === 'asc' ? 1 : -1;
+    if (sortField === 'qty') {
+      return (a.quantity - b.quantity) * modifier;
+    } else if (sortField === 'eta') {
+      const dateA = new Date(a.estimatedDelivery).getTime();
+      const dateB = new Date(b.estimatedDelivery).getTime();
+      if (isNaN(dateA)) return 1;
+      if (isNaN(dateB)) return -1;
+      return (dateA - dateB) * modifier;
+    }
+    return 0;
+  });
+
+  const handleSort = (field: 'qty' | 'eta') => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') setSortDirection('desc');
+      else setSortField(null);
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
   const handleExportCSV = () => {
     const headers = ['Order ID', 'Part Name', 'Status', 'Quantity', 'ETA'];
     const csvContent = [
       headers.join(','),
-      ...filteredOrders.map(o => {
+      ...sortedOrders.map(o => {
         const status = getDerivedStatus(o);
         const etaDate = new Date(o.estimatedDelivery);
         const formattedETA = !isNaN(etaDate.getTime()) 
@@ -720,19 +841,21 @@ function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    addToast("✅ CSV Export downloaded successfully.");
   };
 
-  const filterOptions: FilterOption[] = ['All', 'In Production', 'Quality Check', 'Ready to Ship', 'Delayed', 'Delivered'];
+  const filterOptions: FilterOption[] = ['All', 'Active', 'In Production', 'Quality Check', 'Ready to Ship', 'Delayed', 'Delivered'];
 
   return (
     <div className="app-layout">
-      <GlobalAppBar isStaffMode={isStaffMode} setIsStaffMode={setIsStaffMode} />
+      <GlobalAppBar isStaffMode={isStaffMode} setIsStaffMode={setIsStaffMode} onReset={handleResetSystem} />
       
       <WorkspaceHeader onExportCSV={handleExportCSV} />
       
       <main className="app-container">
 
-        <ExecutiveOverview orders={orders} getDerivedStatus={getDerivedStatus} />
+        <ExecutiveOverview orders={orders} getDerivedStatus={getDerivedStatus} filter={filter} setFilter={setFilter} />
         
         <AIPortfolioInsights orders={orders} getDerivedStatus={getDerivedStatus} />
 
@@ -741,9 +864,10 @@ function App() {
             <div className="search-wrapper">
               <Search className="search-icon" size={15} />
               <input 
+                ref={searchInputRef}
                 type="text" 
                 className="search-input interactive-scale" 
-                placeholder="Search ID or Part Name..."
+                placeholder="Search ID or Part Name (Press '/')"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -759,7 +883,11 @@ function App() {
                   >
                     {option}
                     {option === 'All' && <span className="chip-count">{orders.length}</span>}
-                    {option !== 'All' && <span className="chip-count">{orders.filter(o => getDerivedStatus(o) === option).length}</span>}
+                    {option === 'Active' && <span className="chip-count">{orders.filter(o => {
+                      const st = getDerivedStatus(o);
+                      return st === 'In Production' || st === 'Quality Check';
+                    }).length}</span>}
+                    {option !== 'All' && option !== 'Active' && <span className="chip-count">{orders.filter(o => getDerivedStatus(o) === option).length}</span>}
                   </button>
                 ))}
               </div>
@@ -779,32 +907,51 @@ function App() {
         </div>
         
         <div className="order-list">
-          {filteredOrders.length > 0 && (
+          {sortedOrders.length > 0 && (
             <div className="table-header-row hidden-mobile">
               <div className="header-cell">Order Details</div>
               <div className="header-cell justify-center">Production Progress</div>
-              <div className="header-cell">Quantity</div>
-              <div className="header-cell">Estimated ETA</div>
+              <div 
+                className="header-cell cursor-pointer hover-text-primary"
+                onClick={() => handleSort('qty')}
+                style={{ userSelect: 'none' }}
+              >
+                Quantity {sortField === 'qty' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </div>
+              <div 
+                className="header-cell cursor-pointer hover-text-primary"
+                onClick={() => handleSort('eta')}
+                style={{ userSelect: 'none' }}
+              >
+                Estimated ETA {sortField === 'eta' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </div>
               <div className="header-cell justify-end">Actions</div>
             </div>
           )}
 
-          {filteredOrders.length > 0 ? (
-            filteredOrders.map(order => (
+          {sortedOrders.length > 0 ? (
+            sortedOrders.map((order, index) => (
               <OrderCard 
                 key={order.id} 
                 order={order} 
                 isStaffMode={isStaffMode}
+                isLoading={false}
                 onUpdateStatus={updateOrderStatus}
                 onAddUpdate={addTimelineEvent}
+                index={index}
               />
             ))
           ) : (
             <div className="empty-state">
-              <AlertCircle size={32} className="empty-icon" />
-              <h3>No records found</h3>
-              <p>No operational manufacturing records match the search criteria or filter.</p>
-              <button className="btn-secondary mt-2 interactive-scale" onClick={() => { setFilter('All'); setSearchQuery(''); }}>Clear Filters</button>
+              <Inbox size={48} className="empty-icon text-zinc-300 mb-2" />
+              <h3 className="text-lg font-semibold text-zinc-800">No Orders Found</h3>
+              <p className="text-sm text-zinc-500 max-w-md mx-auto">No manufacturing orders match your active search or filters.</p>
+              <button 
+                className="btn-secondary mt-4 interactive-scale" 
+                onClick={() => { setFilter('All'); setSearchQuery(''); }}
+              >
+                Clear Active Filters
+              </button>
             </div>
           )}
         </div>
@@ -815,8 +962,25 @@ function App() {
         onClose={() => setIsAddModalOpen(false)} 
         onCreate={handleCreateOrder} 
       />
+
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className="toast-notification">
+            <span>{toast.message}</span>
+            {toast.onUndo && (
+              <button 
+                className="ml-auto text-xs font-bold text-zinc-900 bg-white/50 px-2 py-1 rounded hover:bg-white transition-colors"
+                onClick={() => toast.onUndo && toast.onUndo()}
+              >
+                Undo
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 export default App;
+
