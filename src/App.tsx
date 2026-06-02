@@ -234,6 +234,9 @@ const AIPortfolioInsights = ({ orders, getDerivedStatus }: { orders: Order[], ge
         <div className="ai-insights-title">
           <Sparkles size={16} className="text-zinc-900" />
           <span className="font-semibold text-zinc-900 text-sm">AI Portfolio Insights</span>
+          <span className="text-xs text-zinc-500 hidden sm:inline-block ml-3 border-l border-zinc-300 pl-3 font-medium">
+            Analyze your manufacturing pipeline instantly
+          </span>
         </div>
         <button 
           className="btn-ai-generate interactive-scale" 
@@ -684,22 +687,22 @@ function App() {
     setOrders(prev => prev.map(o => {
       if (o.id !== orderId) return o;
 
-      const canonicalWeights: Record<OrderStatus, number> = {
-        'In Production': 0,
-        'Quality Check': 1,
-        'Ready to Ship': 2,
-        'Delivered': 3,
-        'Delayed': -1
-      };
+      const canonicalWeights = new Map<OrderStatus, number>([
+        ['In Production', 0],
+        ['Quality Check', 1],
+        ['Ready to Ship', 2],
+        ['Delivered', 3],
+        ['Delayed', -1]
+      ]);
       
       const manualEvents = o.timeline.filter(e => e.type === 'manual');
       let systemEvents = o.timeline.filter(e => e.type === 'system');
 
-      const targetWeight = canonicalWeights[newStatus];
+      const targetWeight = canonicalWeights.get(newStatus) ?? -1;
       
       if (targetWeight !== -1) {
         systemEvents = systemEvents.filter(e => {
-          const w = canonicalWeights[e.status];
+          const w = canonicalWeights.get(e.status) ?? -1;
           return w === -1 || w < targetWeight; 
         });
       } else if (newStatus === 'Delayed') {
@@ -725,7 +728,7 @@ function App() {
     const handleUndo = () => {
       setOrders(prev => prev.map(o => o.id === orderId ? oldOrder : o));
       setToasts(prev => prev.filter(t => t.id !== toastId));
-      addToast("⏪ Status reverted");
+      addToast("↩️ Status reverted");
     };
 
     toastId = addToast(`✅ Order updated to ${newStatus}`, handleUndo);
@@ -916,14 +919,14 @@ function App() {
                 onClick={() => handleSort('qty')}
                 style={{ userSelect: 'none' }}
               >
-                Quantity {sortField === 'qty' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+                Quantity {sortField === 'qty' ? (sortDirection === 'asc' ? 'â†‘' : 'â†“') : ''}
               </div>
               <div 
                 className="header-cell cursor-pointer hover-text-primary"
                 onClick={() => handleSort('eta')}
                 style={{ userSelect: 'none' }}
               >
-                Estimated ETA {sortField === 'eta' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+                Estimated ETA {sortField === 'eta' ? (sortDirection === 'asc' ? 'â†‘' : 'â†“') : ''}
               </div>
               <div className="header-cell justify-end">Actions</div>
             </div>
