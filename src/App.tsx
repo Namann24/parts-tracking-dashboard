@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { mockOrders, type Order, type OrderStatus, type TimelineEvent } from './data/mockOrders';
-import { Hexagon, Bell, ChevronDown, Search, PackageCheck, AlertTriangle, Activity, Package, Sparkles, Download, RefreshCw, Inbox } from 'lucide-react';
+import { Hexagon, Bell, ChevronDown, Search, PackageCheck, AlertTriangle, Activity, Package, Sparkles, Download, RefreshCw, Inbox, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import './index.css';
 
 const getStatusClass = (status: OrderStatus) => {
@@ -174,6 +174,7 @@ const ExecutiveOverview = ({ orders, getDerivedStatus, filter, setFilter }: {
       </div>
       <div 
         className={`metric-card cursor-pointer transition-all duration-200 hover:border-zinc-300 hover:shadow-md active:scale-[0.98] ${filter === 'Delayed' ? 'ring-2 ring-red-500/50' : ''}`}
+        style={{ backgroundColor: 'rgba(254, 226, 226, 0.4)', borderColor: 'rgba(252, 165, 165, 0.6)' }}
         onClick={() => setFilter('Delayed')}
       >
         <div className="metric-header">
@@ -226,7 +227,7 @@ const AIPortfolioInsights = ({ orders, getDerivedStatus }: { orders: Order[], ge
   const delayedCount = orders.filter(o => getDerivedStatus(o) === 'Delayed').length;
   const readyCount = orders.filter(o => getDerivedStatus(o) === 'Ready to Ship').length;
 
-  const summaryText = `System Insights: There are currently ${activeCount} orders on track, ${delayedCount} order${delayedCount === 1 ? ' is' : 's are'} experiencing scheduling delays, and ${readyCount} batch${readyCount === 1 ? ' is' : 'es are'} ready for shipment cleanup.`;
+  const summaryText = `Pipeline Health: ${activeCount} orders on track, ${delayedCount} delayed, and ${readyCount} ready to ship.`;
 
   return (
     <div className="ai-insights-panel">
@@ -299,8 +300,10 @@ const ProgressStepper = ({ order, currentStatus }: { order: Order, currentStatus
         else if (isActive) stateClass = 'active';
         else stateClass = 'pending';
 
+        const stageClass = `stage-${stage.label.toLowerCase()}`;
+
         return (
-          <div key={stage.label} className={`step-item ${stateClass}`}>
+          <div key={stage.label} className={`step-item ${stateClass} ${stageClass}`}>
             <div className="step-node-container">
               <div className="step-node"></div>
               <span className="step-label">{stage.label}</span>
@@ -313,38 +316,53 @@ const ProgressStepper = ({ order, currentStatus }: { order: Order, currentStatus
   );
 };
 
-const StatusDropdown = ({ value, onChange, options, disabled }: { value: OrderStatus, onChange: (v: OrderStatus) => void, options: OrderStatus[], disabled?: boolean }) => {
-  const [isOpen, setIsOpen] = useState(false);
+const StatusDropdown = ({ value, onChange, options, disabled, isOpen, onToggle }: { value: OrderStatus, onChange: (v: OrderStatus) => void, options: OrderStatus[], disabled?: boolean, isOpen?: boolean, onToggle?: (isOpen: boolean) => void }) => {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const [openUpwards, setOpenUpwards] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const actualIsOpen = isOpen !== undefined ? isOpen : internalIsOpen;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        setIsOpen(false);
+        if (onToggle) onToggle(false);
+        else setInternalIsOpen(false);
       }
     };
-    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+    if (actualIsOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [actualIsOpen, onToggle]);
+
+  const toggleDropdown = () => {
+    if (disabled) return;
+    if (!actualIsOpen && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setOpenUpwards(spaceBelow < 200);
+    }
+    if (onToggle) onToggle(!actualIsOpen);
+    else setInternalIsOpen(!actualIsOpen);
+  };
 
   return (
     <div className="custom-dropdown-container" ref={ref} onClick={(e) => { if(!disabled) e.stopPropagation(); }}>
       <button 
         className={`custom-dropdown-trigger interactive-scale ${getStatusClass(value)}`} 
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
+        onClick={toggleDropdown}
+        aria-expanded={actualIsOpen}
         disabled={disabled}
       >
         <span className="dropdown-value-text">{value}</span>
-        <ChevronDown size={14} className={`dropdown-icon ${isOpen ? 'open' : ''}`} />
+        <ChevronDown size={14} className={`dropdown-icon ${actualIsOpen ? 'open' : ''}`} />
       </button>
-      {isOpen && !disabled && (
-        <div className="custom-dropdown-menu">
+      {actualIsOpen && !disabled && (
+        <div className={`custom-dropdown-menu ${openUpwards ? 'open-upwards' : ''}`}>
           {options.map(opt => (
             <button 
               key={opt} 
               className={`dropdown-item ${opt === 'Delayed' ? 'item-delayed' : ''} ${value === opt ? 'selected' : ''}`}
-              onClick={() => { onChange(opt); setIsOpen(false); }}
+              onClick={() => { onChange(opt); if (onToggle) onToggle(false); else setInternalIsOpen(false); }}
             >
               {opt}
             </button>
@@ -361,17 +379,21 @@ const OrderCard = ({
   isLoading,
   onUpdateStatus, 
   onAddUpdate,
-  index = 0
+  index,
+  isDropdownOpen,
+  onToggleDropdown
 }: { 
   order: Order; 
   isStaffMode: boolean; 
   isLoading: boolean;
-  onUpdateStatus: (id: string, s: OrderStatus) => void;
-  onAddUpdate: (id: string, desc: string, type: 'system' | 'manual') => void;
-  index?: number;
+  onUpdateStatus: (id: string, status: OrderStatus) => void;
+  onAddUpdate: (id: string, message: string, type: 'system' | 'manual') => void;
+  index: number;
+  isDropdownOpen?: boolean;
+  onToggleDropdown?: (isOpen: boolean) => void;
 }) => {
-  const [expanded, setExpanded] = useState(false);
-  const [newUpdateText, setNewUpdateText] = useState("");
+  const [expanded, setExpanded] = useState<boolean>(false);
+  const [newUpdateText, setNewUpdateText] = useState<string>("");
 
   const handleAddUpdate = () => {
     if (newUpdateText.trim()) {
@@ -380,7 +402,7 @@ const OrderCard = ({
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === 'Enter' || e.key === ' ') && (e.target as HTMLElement).classList.contains('order-card-summary')) {
       e.preventDefault();
       setExpanded(!expanded);
@@ -401,7 +423,7 @@ const OrderCard = ({
   return (
     <div 
       className={`order-card animate-fade-in ${getCardBorderClass(displayStatus)} ${expanded ? 'expanded' : ''} ${isLoading ? 'is-loading' : ''}`}
-      style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'both' }}
+      style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'both', zIndex: isDropdownOpen ? 999 : 100 - index, position: 'relative' }}
     >
       <div 
         className="order-card-summary" 
@@ -424,7 +446,7 @@ const OrderCard = ({
 
         {/* Column 3: Qty */}
         <div className="col-qty">
-          <div className="metric-group mobile-only-group">
+          <div className="metric-group mobile-only-group" style={{ alignItems: 'center' }}>
             <span className="metric-label hidden-desktop">Qty</span>
             <span className="metric-value value-numeric">{order.quantity.toLocaleString()}</span>
           </div>
@@ -432,7 +454,7 @@ const OrderCard = ({
 
         {/* Column 4: ETA */}
         <div className="col-eta">
-          <div className="metric-group mobile-only-group">
+          <div className="metric-group mobile-only-group" style={{ alignItems: 'center' }}>
             <span className="metric-label hidden-desktop">ETA</span>
             <span className="metric-value">{formattedETA}</span>
           </div>
@@ -446,6 +468,8 @@ const OrderCard = ({
               onChange={(v) => onUpdateStatus(order.id, v)} 
               options={statusOptions}
               disabled={isLoading}
+              isOpen={isDropdownOpen}
+              onToggle={onToggleDropdown}
             />
           ) : (
             <span className={`status-badge ${getStatusClass(displayStatus)}`}>
@@ -465,6 +489,7 @@ const OrderCard = ({
           <div className="timeline">
             {order.timeline.map((event) => {
               const isManual = event.type === 'manual';
+              const isActiveStage = !isManual && latestSystemEvent && event.id === latestSystemEvent.id;
               return (
                 <div key={event.id} className={`timeline-item node-${event.status.replace(/\s+/g, '-').toLowerCase()} ${isManual ? 'item-manual' : 'item-system'}`}>
                   <div className="timeline-node-wrapper">
@@ -473,9 +498,14 @@ const OrderCard = ({
                   </div>
                   <div className="timeline-content">
                     <div className="timeline-event-header">
-                      <span className="timeline-status">{isManual ? 'Operator Note' : event.status}</span>
+                      <span className="timeline-status" style={{ fontWeight: isActiveStage ? 700 : undefined }}>
+                        {isManual ? 'Operator Note' : event.status}
+                      </span>
                       {!isManual && (
                         <span className="timeline-system-badge">SYSTEM</span>
+                      )}
+                      {isActiveStage && (
+                        <span className="active-stage-badge">CURRENT</span>
                       )}
                       <span className="timeline-time">
                         {new Date(event.timestamp).toLocaleString(undefined, { 
@@ -532,6 +562,110 @@ const OrderCard = ({
 };
 
 // --- Add Order Modal ---
+const PremiumCalendar = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => {
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const ref = useRef<HTMLDivElement>(null);
+  
+  // Track the month currently being viewed (not necessarily the selected month)
+  const [viewDate, setViewDate] = useState(() => value ? new Date(value) : new Date());
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+
+  const handlePrevMonth = () => {
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+  };
+  const handleNextMonth = () => {
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+  };
+
+  const renderCalendar = () => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const totalDays = daysInMonth(year, month);
+    const startDay = firstDayOfMonth(year, month);
+    
+    const days = [];
+    // Blank days at start
+    for (let i = 0; i < startDay; i++) {
+      days.push(<div key={`empty-${i}`} className="text-center p-1"></div>);
+    }
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Actual days
+    for (let d = 1; d <= totalDays; d++) {
+      const dateStr = new Date(year, month, d).toLocaleDateString('en-CA'); // gets YYYY-MM-DD
+      const isSelected = value === dateStr;
+      const isToday = todayStr === dateStr;
+      
+      days.push(
+        <button
+          key={d}
+          type="button"
+          onClick={() => { onChange(dateStr); setIsOpen(false); }}
+          className={`calendar-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
+        >
+          {d}
+        </button>
+      );
+    }
+    
+    return days;
+  };
+
+  return (
+    <div className="custom-dropdown-container" ref={ref} style={{ width: '100%' }}>
+      <button 
+        type="button"
+        className="form-input interactive-scale" 
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', cursor: 'pointer', textAlign: 'left' }}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span style={{ color: value ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+          {value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric'}) : 'mm/dd/yyyy'}
+        </span>
+        <Calendar size={16} style={{ color: 'var(--text-muted)' }} />
+      </button>
+      {isOpen && (
+        <div className="premium-calendar animate-fade-in">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+              {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="button" onClick={handlePrevMonth} style={{ padding: '0.2rem', cursor: 'pointer', borderRadius: '4px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover-bg-hover">
+                <ChevronLeft size={16} style={{ color: 'var(--text-secondary)' }} />
+              </button>
+              <button type="button" onClick={handleNextMonth} style={{ padding: '0.2rem', cursor: 'pointer', borderRadius: '4px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover-bg-hover">
+                <ChevronRight size={16} style={{ color: 'var(--text-secondary)' }} />
+              </button>
+            </div>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '0.5rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+            {renderCalendar()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AddOrderModal = ({ 
   isOpen, 
   onClose, 
@@ -545,7 +679,20 @@ const AddOrderModal = ({
   const [qty, setQty] = useState('');
   const [eta, setEta] = useState('');
 
-  if (!isOpen) return null;
+  const [isClosing, setIsClosing] = useState(false);
+  const [shouldRender, setShouldRender] = useState(isOpen);
+
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      setIsClosing(false);
+    } else if (shouldRender) {
+      setIsClosing(true);
+      setTimeout(() => setShouldRender(false), 300);
+    }
+  }, [isOpen, shouldRender]);
+
+  if (!shouldRender) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -558,8 +705,10 @@ const AddOrderModal = ({
   };
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-surface">
+    <div className={`modal-backdrop ${isClosing ? 'animate-fade-out' : ''}`} onMouseDown={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div className={`modal-surface ${isClosing ? 'animate-fade-out-down' : 'animate-fade-in'}`}>
         <h2 className="modal-title">Add New Order</h2>
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
@@ -588,13 +737,7 @@ const AddOrderModal = ({
           </div>
           <div className="form-group">
             <label className="form-label">ETA Date</label>
-            <input 
-              type="date" 
-              className="form-input interactive-scale" 
-              value={eta} 
-              onChange={e => setEta(e.target.value)} 
-              required 
-            />
+            <PremiumCalendar value={eta} onChange={setEta} />
           </div>
           <div className="modal-actions">
             <button type="button" className="btn-modal-cancel interactive-scale" onClick={onClose}>Cancel</button>
@@ -620,6 +763,7 @@ function App() {
   const [isStaffMode, setIsStaffMode] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
   const [sortField, setSortField] = useState<'qty' | 'eta' | null>(null);
@@ -870,10 +1014,13 @@ function App() {
                 ref={searchInputRef}
                 type="text" 
                 className="search-input interactive-scale" 
-                placeholder="Search ID or Part Name (Press '/')"
+                placeholder="Search ID or Part Name"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <div className="search-shortcut hidden-mobile">
+                <span className="search-shortcut-key">/</span>
+              </div>
             </div>
             
             <div className="filter-chips-wrapper">
@@ -915,18 +1062,18 @@ function App() {
               <div className="header-cell">Order Details</div>
               <div className="header-cell justify-center">Production Progress</div>
               <div 
-                className="header-cell cursor-pointer hover-text-primary"
+                className="header-cell justify-center cursor-pointer hover-text-primary"
                 onClick={() => handleSort('qty')}
                 style={{ userSelect: 'none' }}
               >
-                Quantity {sortField === 'qty' ? (sortDirection === 'asc' ? 'â†‘' : 'â†“') : ''}
+                Quantity {sortField === 'qty' ? (sortDirection === 'asc' ? ' \u2191' : ' \u2193') : ''}
               </div>
               <div 
-                className="header-cell cursor-pointer hover-text-primary"
+                className="header-cell justify-center cursor-pointer hover-text-primary"
                 onClick={() => handleSort('eta')}
                 style={{ userSelect: 'none' }}
               >
-                Estimated ETA {sortField === 'eta' ? (sortDirection === 'asc' ? 'â†‘' : 'â†“') : ''}
+                Estimated ETA {sortField === 'eta' ? (sortDirection === 'asc' ? ' \u2191' : ' \u2193') : ''}
               </div>
               <div className="header-cell justify-end">Actions</div>
             </div>
@@ -942,6 +1089,8 @@ function App() {
                 onUpdateStatus={updateOrderStatus}
                 onAddUpdate={addTimelineEvent}
                 index={index}
+                isDropdownOpen={activeDropdownId === order.id}
+                onToggleDropdown={(isOpen) => setActiveDropdownId(isOpen ? order.id : null)}
               />
             ))
           ) : (
